@@ -1,0 +1,42 @@
+---
+- name: Create AWS Site to Site VPN connection
+  hosts: localhost
+  tasks:
+   
+    - name: Get VpcId from VPC name
+      amazon.aws.ec2_vpc_net_info:
+        region: '{{ aws_region }}'
+        filters:
+          "tag:Name": '{{ vpc_name }}'
+      register: vpc  
+    
+    - name: Create Customer Gateway
+      community.aws.ec2_customer_gateway:
+        name: '{{ customer_gateway_name }}'
+        routing: '{{ routing_value }}'
+        ip_address: '{{ ip_address }}'
+        region: '{{ aws_region }}'
+      register: cgw
+
+    - name: Create a new VPGW and  attach to vpc '{{ vpc_name }}'
+      community.aws.ec2_vpc_vgw:
+        name: '{{ aws_vpn_gateway_name }}'
+        region: '{{ aws_region }}'
+        vpc_id: '{{ vpc.vpcs[0].vpc_id }}'
+        type: ipsec.1
+        state: present
+      register: vgw_info
+    
+    - name: Create a VPN connection
+      community.aws.ec2_vpc_vpn:
+        region: '{{ aws_region }}'
+        static_only: true
+        state: present
+        vpn_gateway_id: '{{ vgw_info.vgw.id }}'
+        customer_gateway_id: '{{ cgw.gateway.customer_gateway.customer_gateway_id }}'
+        routes:
+          - '{{ local_cidr }}'
+        tags:
+          Name: '{{ aws_vpn_connection_name }}'
+          Project: '{{ aws_project }}'
+...          
